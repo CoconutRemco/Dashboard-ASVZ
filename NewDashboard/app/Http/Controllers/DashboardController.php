@@ -7,26 +7,35 @@ use App\Services\MqttService;
 
 class DashboardController extends Controller
 {
-    public function index()
-    {
-        // Retrieve MQTT messages from the session
-        $messages = session('mqtt_messages', []);
+    protected $mqttService;
 
-        // Return the messages to the dashboard view
-        return view('dashboard', ['messages' => $messages]);
+    public function __construct(MqttService $mqttService)
+    {
+        $this->mqttService = $mqttService;
     }
 
-    public function sendMessage(Request $request, MqttService $mqttService)
+    // Show the dashboard with received messages
+    public function showDashboard()
     {
-        // Validate message input
+        // Read messages from the file
+        $messages = file_exists(storage_path('mqtt_messages.txt'))
+            ? file(storage_path('mqtt_messages.txt'), FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES)
+            : [];
+
+        return view('dashboard', compact('messages'));
+    }
+
+    // Send a message via MQTT
+    public function sendMessage(Request $request)
+    {
+        // Validate the request input
         $request->validate([
             'message' => 'required|string',
         ]);
 
-        // Send the message via MQTT
-        $mqttService->publishMessage($request->message);
+        // Publish the message to the MQTT broker
+        $this->mqttService->publishMessage('available_devices', $request->message);
 
-        // Redirect back to the dashboard
-        return redirect()->route('dashboard');
+        return redirect()->route('dashboard')->with('success', 'Message sent successfully!');
     }
 }
